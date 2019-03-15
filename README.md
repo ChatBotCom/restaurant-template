@@ -4,7 +4,7 @@ To add the product to your order, display current status and start the process a
 
 This example was written in Javascript and requires Node.js, but you can rewrite this code to any other server-side language you want. It’s effortless to use, but if you don’t trust me, check it yourself 😀 .
 
-[Click here](https://www.chatbot.com/help/templates/restaurant-template/) you can find an instruction how it works step by step.
+[Here](https://www.chatbot.com/help/templates/restaurant-template) you can find an instruction how it works step by step.
 
 [![Restaurant bot](https://cdn.chatbot.com/website/help/templates/restaurant_bot.png)](https://cdn.chatbot.com/website/help/templates/restaurant_bot.mp4)
 
