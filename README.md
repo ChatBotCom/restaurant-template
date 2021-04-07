@@ -1,5 +1,7 @@
 # Bot Restaurant Template
 
+**🆕 This template works with the new Visual Builder and the old one 🆕**
+
 To add the product to your order, display current status and start the process again, we’ve prepared a simple backend.
 
 This example was written in Javascript and requires Node.js, but you can rewrite this code to any other server-side language you want. It’s effortless to use, but if you don’t trust me, check it yourself 😀 .
