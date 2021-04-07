@@ -50,7 +50,10 @@ router
             return res.sendStatus(401);
         }
 
-        const action = req.body.result.interaction.action;
+        req.version = req.body.result ? 1 : 2;
+
+        const action = req.version === 1 ?
+            req.body.result.interaction.action : req.body.attributes.action;
 
         if (['add-product', 'order-summary', 'start-again'].includes(action)) {
             req.url = `/${action}`;
@@ -64,11 +67,12 @@ router
 router
     .route('/add-product')
     .post((req, res, next) => {
-        const { result } = req.body;
+        const sessionParameters = req.version === 1 ?
+            req.body.result.sessionParameters : req.body.attributes;
 
         // get attributes collected in the ongoing chat
-        const productName = result.sessionParameters.productName;
-        const productQuantity = Number(result.sessionParameters.productQuantity);
+        const productName = sessionParameters.productName;
+        const productQuantity = Number(sessionParameters.productQuantity);
 
         // make a product object based on the collected attributes
         if (productName && productQuantity) {
@@ -85,7 +89,7 @@ router
         let order;
 
         // get the sessionId from the ongoing request
-        const { sessionId } = req.body;
+        const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
         const product = req.product;
 
         // database
@@ -125,21 +129,34 @@ router
         return res.json();
     })
     .post((req, res) => {
-        const data = {
-            responses: [
+        let responses = [];
+
+        if (req.version == 2) {
+            responses = [
+                {
+                    type: 'text',
+                    message: 'Product has been added successfully. Your order summary:'
+                },
+                {
+                    type: 'text',
+                    message: transformOrderToText(req.order)
+                }
+            ];
+        } else {
+            responses = [
                 {
                     type: 'text',
                     elements: ['Product has been added successfully. Your order summary:']
                 },
                 {
                     type: 'text',
-                    elements: [transformOrderToText(req.order)] // usem function for transform order to the text message
+                    elements: [transformOrderToText(req.order)]
                 }
-            ]
-        };
+            ];
+        }
 
         // return responses back to the ChatBot
-        res.json(data);
+        res.json({ responses });
     });
 
 // return order back to the ChatBot
@@ -149,7 +166,7 @@ router
         let order;
 
         // get the sessionId
-        const { sessionId } = req.body;
+        const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
 
         try {
             // database
@@ -165,8 +182,21 @@ router
             next(e);
         }
 
-        res.json({
-            responses: [
+        let responses = [];
+
+        if (req.version == 2) {
+            responses = [
+                {
+                    type: 'text',
+                    message: 'Your order summary:'
+                },
+                {
+                    type: 'text',
+                    message: transformOrderToText(order)
+                }
+            ];
+        } else {
+            responses = [
                 {
                     type: 'text',
                     elements: ['Your order summary:']
@@ -175,8 +205,10 @@ router
                     type: 'text',
                     elements: [transformOrderToText(order)] // use the function for transform order to the text message
                 }
-            ]
-        });
+            ];
+        }
+
+        res.json({ responses });
     });
 
 // clear the order
@@ -184,7 +216,7 @@ router
     .route('/start-again')
     .post(async (req, res) => {
         // get the sessionId
-        const { sessionId } = req.body;
+        const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
 
         try {
             // database
