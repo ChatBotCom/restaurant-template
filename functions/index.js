@@ -1,6 +1,7 @@
 'use strict';
 
 const TOKEN = '{{YOUR_TOKEN}}'; // put your authorization token here
+const FIRESTORE_COLLECTION = 'COLLECTION_NAME'; // put your firestore collection name (https://firebase.google.com/docs/firestore)
 
 const express = require('express');
 const { Router } = require('express');
@@ -10,9 +11,11 @@ const functions = require('firebase-functions');
 const firebase = require('firebase-admin');
 
 firebase.initializeApp({
-    credential: firebase.credential.applicationDefault(),
-    databaseURL: '{{YOUR_DATABASE_URL}}' // put url to your firebase database here
+    credential: firebase.credential.applicationDefault()
 });
+
+// connect to firestore
+const db = admin.firestore().collection(FIRESTORE_COLLECTION);
 
 // function for transform the order to a text message
 // docs for the text fullfillment is described here: https://www.chatbot.com/docs/object-definitions
@@ -86,41 +89,34 @@ router
         return res.json();
     })
     .post(async (req, res, next) => {
-        let order;
+        let order = [];
 
-        // get the sessionId from the ongoing request
+        // find sessionId
         const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
         const product = req.product;
 
-        // database
-        const db = firebase.database();
-        const ref = db.ref(sessionId.substring(2));
+        // find a document in the firestore db
+        const doc = db.doc(sessionId);
+        const products = await doc.get();
+        const data = { products: [] };
 
-        // open database transaction; find the order based on the sessionId
-        try {
-            await ref.transaction((data) => {
-                if (data === null) {
-                    data = [product];
-                } else {
-                    // find the product and increment the productQuantity or add a new one
-                    const findProduct = data.find(item => item.productName === product.productName);
-
-                    if (findProduct) {
-                        findProduct.productQuantity += product.productQuantity;
-                    } else {
-                        data.push(product);
-                    }
-                }
-
-                // store current order
-                order = data;
-                return data;
-            });
-        } catch (e) {
-           next(e);
+        if (products.data()) {
+            data.products = products.data().products;
         }
 
-        // go to the next part
+        // find product in data from db
+        const findProductIndex = data.products.findIndex(item => item.productName === product.productName);
+
+        if (findProductIndex > -1) {
+            data.products[findProductIndex].productQuantity += product.productQuantity;
+        } else {
+            data.products.push(product);
+        }
+
+        // update document
+        await doc.set(data);
+        order = data.products;
+
         if (order.length) {
             req.order = order;
             return next();
@@ -163,25 +159,12 @@ router
 router
     .route('/order-summary')
     .post(async (req, res) => {
-        let order;
-
-        // get the sessionId
         const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
+        const doc = db.doc(sessionId);
+        const products = await doc.get();
 
-        try {
-            // database
-            const db = firebase.database();
-            const ref = db.ref(sessionId.substring(2));
-
-            // open database transaction; store the order
-            await ref.transaction((data) => {
-                order = data;
-                return order;
-            });
-        } catch (e) {
-            next(e);
-        }
-
+        // get order
+        let order = products.data().products || [];
         let responses = [];
 
         if (req.version == 2) {
@@ -203,7 +186,7 @@ router
                 },
                 {
                     type: 'text',
-                    elements: [transformOrderToText(order)] // use the function for transform order to the text message
+                    elements: [transformOrderToText(order)]
                 }
             ];
         }
@@ -219,13 +202,7 @@ router
         const sessionId = req.version === 1 ? req.body.sessionId : req.body.chatId;
 
         try {
-            // database
-            const db = firebase.database();
-            const ref = db.ref(sessionId.substring(2));
-
-            await ref.transaction(() => {
-                return [];
-            });
+            db.doc(sessionId).delete();
         } catch (e) {
             next(e);
         }
